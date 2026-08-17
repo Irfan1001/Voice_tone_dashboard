@@ -40,23 +40,3 @@ Audio → Preprocessor → Feature Extraction → Predictors → Rule Engine →
                        overlap, roles       only          (all thresholds here)
 ```
 
-Two invariants carry most of the design:
-
-- **Predictors measure, the rule engine decides.** A predictor never emits
-  `"emotional_tone": "upset"` — it emits arousal, dominance and valence. Every
-  threshold therefore lives in one reviewable file and the mapping is testable
-  without loading a model.
-- **No fabricated values.** A predictor that cannot run fails the clip rather than
-  substituting a placeholder, because a fabricated `"neutral"` is indistinguishable
-  from a measured one in the output.
-
-## A note on data
-
-No audio ships with this repository. The original trial recordings are real customer
-calls, so they are deliberately excluded. Put your own `wav`/`ogg`/`mp3`/`flac` files
-into `voice_analytics/data/` and everything works unchanged.
-
-The emotion model
-(`audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim`) is **CC-BY-NC-SA-4.0 —
-non-commercial**. Resolve a licence before any revenue use; see the licence table in
-the full documentation.
