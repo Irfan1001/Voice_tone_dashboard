@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Analytics</title>
+<style>
+  :root {
+    --bg:#0f1216; --panel:#171b21; --line:#252b34; --text:#e6e9ee; --dim:#8e98a6;
+    --accent:#4c9aff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f7f9; --panel:#fff; --line:#e2e5ea; --text:#1a1d21; --dim:#5c6672; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,
+         BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex;
+           align-items:center; gap:16px; flex-wrap:wrap; }
+  h1 { font-size:17px; margin:0; font-weight:600; letter-spacing:-.01em; }
+  .status { font-size:12px; color:var(--dim); margin-left:auto; display:flex;
+            gap:14px; align-items:center; flex-wrap:wrap; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
+  main { padding:24px; max-width:1180px; margin:0 auto; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+           padding:18px; margin-bottom:18px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+              color:var(--dim); margin:0 0 14px; font-weight:600; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  input[type=file], input[type=password] { background:var(--bg); color:var(--text);
+    border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:7px;
+           padding:9px 16px; font-size:13px; font-weight:500; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:transparent; color:var(--dim); border:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-weight:600; color:var(--dim); font-size:11px;
+       text-transform:uppercase; letter-spacing:.05em; padding:8px 10px;
+       border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  tbody tr:hover { background:rgba(127,127,127,.06); }
+  .scroll { overflow-x:auto; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px;
+         font-weight:600; border:1px solid transparent; }
+  .t-upset,.t-distressed { background:rgba(248,81,73,.15); color:var(--bad); }
+  .t-frustrated { background:rgba(210,153,34,.15); color:var(--warn); }
+  .t-satisfied { background:rgba(63,185,80,.15); color:var(--ok); }
+  .t-neutral { background:rgba(140,150,165,.15); color:var(--dim); }
+  .bar { height:5px; background:var(--line); border-radius:3px; overflow:hidden;
+         min-width:90px; }
+  .bar > i { display:block; height:100%; background:var(--accent); transition:width .3s; }
+  .muted { color:var(--dim); }
+  .err { color:var(--bad); }
+  .note { font-size:12px; color:var(--dim); margin-top:10px; line-height:1.6; }
+  code { background:var(--bg); padding:1px 5px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Voice Analytics</h1>
+  <div class="status">
+    <span id="health"><span class="dot" style="background:var(--dim)"></span>checking…</span>
+    <span id="queue"></span>
+    <span id="authstate"></span>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>Submit</h2>
+    <div class="row">
+      <input type="password" id="key" placeholder="X-API-Key (blank if open)" size="26">
+      <input type="file" id="one" accept="audio/*,.ogg,.opus,.wav,.mp3,.flac,.m4a">
+      <button id="btnOne">Analyse file</button>
+      <input type="file" id="zip" accept=".zip">
+      <button id="btnZip">Analyse ZIP</button>
+      <button class="ghost" id="btnRefresh">Refresh</button>
+    </div>
+    <div class="note" id="submitNote">
+      Processing runs at roughly <strong>0.8× realtime on one CPU core</strong> — a
+      3-minute call takes about 3.5 minutes. Jobs are queued and processed one at a
+      time; this page polls for progress.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Jobs</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Job</th><th>Kind</th><th>State</th><th>Progress</th>
+          <th>Audio</th><th>Wall</th><th>Realtime</th><th></th></tr></thead>
+        <tbody id="jobs"><tr><td colspan="8" class="muted">No jobs yet.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="resultPanel" style="display:none">
+    <h2>Results — <span id="resultJob" class="muted"></span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>File</th><th>Tone</th><th>Intensity</th><th>Noise</th><th>Type</th>
+          <th>Severity</th><th>Quality</th><th>Overlap</th><th>Silence</th>
+          <th>Confidence</th><th>Notes</th>
+        </tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="ghost" id="btnCsv">Download CSV</button>
+      <span class="note" id="resultNote"></span>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let watching = null;
+
+// Everything the server sends goes through this before reaching innerHTML.
+// Error and warning strings can embed decoder output derived from the uploaded
+// file, so they are attacker-influenced even though the API itself is trusted.
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const key = () => $("key").value.trim();
+const headers = () => key() ? {"X-API-Key": key()} : {};
+
+async function api(path, opts={}) {
+  const r = await fetch(path, {...opts, headers: {...headers(), ...(opts.headers||{})}});
+  if (r.status === 401) throw new Error("401 — check the API key");
+  if (!r.ok) {
+    let detail = r.statusText;
+    try { detail = (await r.json()).detail || detail; } catch {}
+    throw new Error(`${r.status} — ${detail}`);
+  }
+  return r.json();
+}
+
+async function health() {
+  try {
+    const h = await api("/health");
+    const colour = h.status === "ok" ? "var(--ok)"
+                 : h.status === "loading" ? "var(--warn)" : "var(--bad)";
+    const label = h.status === "loading" ? "loading models…" : h.status;
+    $("health").innerHTML =
+      `<span class="dot" style="background:${colour}"></span>${esc(label)}`;
+    $("queue").textContent = `queue ${h.queue_depth} · done ${h.jobs_processed}`;
+    $("authstate").innerHTML = h.auth.startsWith("OPEN")
+      ? `<span style="color:var(--warn)">auth OPEN</span>` : "auth on";
+    if (h.load_error) $("health").title = h.load_error;
+  } catch (e) {
+    $("health").innerHTML =
+      `<span class="dot" style="background:var(--bad)"></span>${esc(e.message)}`;
+  }
+}
+
+function tag(v) {
+  return `<span class="tag t-${esc(v)}">${esc(v)}</span>`;
+}
+
+async function jobs() {
+  try {
+    const {jobs} = await api("/v1/jobs?limit=20");
+    if (!jobs.length) {
+      $("jobs").innerHTML = `<tr><td colspan="8" class="muted">No jobs yet.</td></tr>`;
+      return;
+    }
+    $("jobs").innerHTML = jobs.map(j => {
+      const pct = j.total ? Math.round(100 * j.completed / j.total) : 0;
+      const colour = j.state === "failed" ? "var(--bad)"
+                   : j.state === "done" ? "var(--ok)" : "var(--accent)";
+      return `<tr>
+        <td><code>${esc(j.job_id.slice(0,8))}</code></td>
+        <td class="muted">${esc(j.kind)}</td>
+        <td style="color:${colour}">${esc(j.state)}${j.failed ? ` <span class="err">(${esc(j.failed)} failed)</span>` : ""}</td>
+        <td><div class="bar"><i style="width:${pct}%"></i></div>
+            <span class="muted">${esc(j.completed)}/${esc(j.total)}</span></td>
+        <td class="muted">${esc(j.audio_seconds)}s</td>
+        <td class="muted">${esc(j.wall_seconds)}s</td>
+        <td class="muted">${j.realtime_factor ? esc(j.realtime_factor) + "×" : "—"}</td>
+        <td><button class="ghost" onclick="show('${esc(j.job_id)}')">View</button></td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    $("jobs").innerHTML = `<tr><td colspan="8" class="err">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function show(id) {
+  watching = id;
+  $("resultPanel").style.display = "block";
+  $("resultJob").textContent = id;
+  try {
+    const j = await api(`/v1/jobs/${encodeURIComponent(id)}`);
+    $("results").innerHTML = j.items.map(it => {
+      if (it.error) return `<tr><td>${esc(it.name)}</td>
+        <td colspan="9" class="err">${esc(it.error)}</td><td></td></tr>`;
+      const r = it.result;
+      if (!r) return `<tr><td>${esc(it.name)}</td>
+        <td colspan="10" class="muted">waiting…</td></tr>`;
+      return `<tr>
+        <td>${esc(it.name)}</td>
+        <td>${tag(r.emotional_tone)}</td>
+        <td>${esc(r.emotional_intensity)}</td>
+        <td>${esc(r.background_noise_present)}</td>
+        <td class="muted">${esc(r.background_noise_type) || "—"}</td>
+        <td>${esc(r.background_noise_severity)}</td>
+        <td>${esc(r.audio_quality)}</td>
+        <td>${esc(r.speaker_overlap_present)}</td>
+        <td>${esc(r.long_silence_present)}</td>
+        <td>${esc(r.confidence)}</td>
+        <td class="muted">${esc((it.warnings||[]).join("; ")) || "—"}</td>
+      </tr>`;
+    }).join("");
+    $("resultNote").textContent = j.state === "done" || j.state === "failed"
+      ? `${j.completed}/${j.total} processed · ${j.wall_seconds}s wall`
+      : "still processing — this table refreshes automatically";
+  } catch (e) {
+    $("results").innerHTML = `<tr><td colspan="11" class="err">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function submit(inputId, path, label) {
+  const input = $(inputId);
+  if (!input.files.length) { alert(`Choose a ${label} first.`); return; }
+  const body = new FormData();
+  body.append("file", input.files[0]);
+  const btn = inputId === "one" ? $("btnOne") : $("btnZip");
+  btn.disabled = true; btn.textContent = "Uploading…";
+  try {
+    const j = await api(path, {method: "POST", body});
+    if (j.skipped && j.skipped.length)
+      alert(`Queued ${j.total} file(s).\n\nSkipped:\n${j.skipped.join("\n")}`);
+    input.value = "";
+    await jobs(); show(j.job_id);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = inputId === "one" ? "Analyse file" : "Analyse ZIP";
+  }
+}
+
+$("btnOne").onclick = () => submit("one", "/v1/analyze", "audio file");
+$("btnZip").onclick = () => submit("zip", "/v1/batch", "ZIP");
+$("btnRefresh").onclick = () => { health(); jobs(); if (watching) show(watching); };
+$("btnCsv").onclick = async () => {
+  if (!watching) return;
+  const r = await fetch(`/v1/jobs/${encodeURIComponent(watching)}/csv`,
+                        {headers: headers()});
+  if (!r.ok) { alert(`${r.status} — could not fetch CSV`); return; }
+  const blob = await r.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `voice_${watching.slice(0,8)}.csv`;
+  a.click();
+};
+$("key").addEventListener("change", () => { health(); jobs(); });
+
+health(); jobs();
+setInterval(() => { health(); jobs(); if (watching) show(watching); }, 3000);
+</script>
+</body>
+</html>

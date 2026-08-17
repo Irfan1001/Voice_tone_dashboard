@@ -1,0 +1,30 @@
+# Voice Analytics Pipeline - local, deterministic, no LLMs.
+#   python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# Or just run ./run.sh, which does this for you.
+
+# --- audio I/O + DSP ---
+numpy>=1.26,<3
+scipy>=1.11
+librosa>=0.10.2
+numba>=0.61            # librosa's JIT dep; floor pinned or the resolver
+                       # backtracks to numba 0.53 (Python <3.10 only)
+soundfile>=0.14        # bundled libsndfile: ogg/opus, wav, flac, mp3
+
+# --- neural predictors ---
+torch>=2.4             # CPU wheels by default on macOS
+torchaudio>=2.4
+transformers>=4.44     # wav2vec2 SER, AST audio events, whisper-tiny
+
+# --- voice activity ---
+silero-vad>=5.1
+
+# --- overlap + diarization (gated models: needs HF_TOKEN + accepted terms) ---
+pyannote.audio>=3.3
+
+# --- HTTP service: API, batch ZIP upload, dashboard ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # multipart/form-data uploads
+
+# --- tests ---
+pytest>=8.0

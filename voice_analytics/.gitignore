@@ -1,0 +1,20 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# evaluation data & outputs (regenerable, and large)
+data/cremad/
+out/
+
+# Client trial audio — real customer recordings. Never publish: the calls carry
+# identifiable voices, names and contact details. Drop your own audio in to run.
+data/*.ogg
+data/*.wav
+data/labels.csv
