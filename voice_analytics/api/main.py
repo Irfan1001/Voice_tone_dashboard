@@ -77,11 +77,18 @@ app = FastAPI(
 
 
 def require_key(x_api_key: str | None = Header(default=None)) -> None:
-    """Constant-time key check. No-op when no keys are configured (open mode)."""
+    """Constant-time key check. No-op when no keys are configured (open mode).
+
+    Compared as BYTES: `compare_digest` raises TypeError on non-ASCII `str`, which
+    turned a bad credential into a 500 with a traceback - an unauthenticated way to
+    make the service look broken, and indistinguishable from a real fault in
+    monitoring.
+    """
     if not API_KEYS:
         return
-    if not x_api_key or not any(
-            secrets.compare_digest(x_api_key, k) for k in API_KEYS):
+    supplied = (x_api_key or "").strip().encode("utf-8")
+    if not supplied or not any(
+            secrets.compare_digest(supplied, k.encode("utf-8")) for k in API_KEYS):
         raise HTTPException(status_code=401, detail="invalid or missing X-API-Key")
 
 
